@@ -34,9 +34,9 @@ impl FireVE {
         }
     }
 
-    pub fn paint<T: RenderTarget, R: RngCore>(&mut self, canvas: &mut Canvas<T>, rng: &mut R, source_rect: Rect, target_rect: Rect) {
+    pub fn paint<T: RenderTarget, R: RngCore>(&mut self, canvas: &mut Canvas<T>, rng: &mut R, source_rect: Rect, target_rect: Rect, color: Color) {
         if self.is_in {
-            draw_line(canvas, self.p0, self.p1, Color::CYAN);
+            draw_line(canvas, self.p0, self.p1, color);
         }
 
 
@@ -82,10 +82,10 @@ impl MultiFireVE {
         }
     }
 
-    pub fn paint<T: RenderTarget, R: RngCore>(&mut self, canvas: &mut Canvas<T>, rng: &mut R, source_rect: Rect, target_rect: Rect) {
+    pub fn paint<T: RenderTarget, R: RngCore>(&mut self, canvas: &mut Canvas<T>, rng: &mut R, source_rect: Rect, target_rect: Rect, color: Color) {
 
         for f in &mut self.fires {
-            f.paint(canvas, rng, source_rect, target_rect)
+            f.paint(canvas, rng, source_rect, target_rect, color)
         }
     }
 

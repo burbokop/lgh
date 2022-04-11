@@ -1,9 +1,9 @@
 use std::{cell::{RefCell, RefMut, Ref}, rc::{Rc, Weak}, borrow::BorrowMut, time::Duration};
 
 use sdl2::{render::{RenderTarget, Canvas}, gfx::primitives::DrawRenderer, event::Event, pixels::Color, mouse::MouseButton, ttf::Font, video::Window};
-use vecmat::{Vector, Complex};
+use vecmat::{Vector, Complex, prelude::Dot};
 
-use crate::{admiral::Admiral, graphics::{draw_rotated_rect, draw_line}, scene::Scene, visual_effects::MultiFireVE, rect::Rect};
+use crate::{admiral::Admiral, graphics::{draw_rotated_rect, draw_line}, scene::Scene, visual_effects::MultiFireVE, rect::Rect, side::Side, math::map_range_f64};
 
 use sdl2::gfx;
 
@@ -86,7 +86,12 @@ pub struct Rotation {
 
 impl Rotation {
     pub fn new(radians: f64) -> Self {
-        Self { rotor: Complex::from(Vector::from([ radians.cos(), radians.sin() ])), radians: radians }
+        Self { rotor: Complex::from([ radians.cos(), radians.sin() ]), radians: radians }
+    }
+    pub fn from_cos(cos: f64) -> Self {
+        let sin = (1. - (cos * cos)).sqrt();
+
+        Self { rotor: Complex::from([cos, sin]), radians: cos.acos() }
     }
 }
 
@@ -98,20 +103,21 @@ impl Default for Rotation {
 
 
 pub struct Fleet {
-    admiral: Admiral,
-    ship_count: f64,
-    fighting_spirit: f64, // from 0 to 1
-    max_vel: f64,
-    fire_range: f64,
+    pub side: Rc<RefCell<Side>>,
+    pub admiral: Admiral,
+    pub ship_count: f64,
+    pub fighting_spirit: f64, // from 0 to 1
+    pub max_vel: f64,
+    pub fire_range: f64,
 
-    pos: Vector<f64, 2>,
+    pub pos: Vector<f64, 2>,
     vel: Vector<f64, 2>,
     acc: Vector<f64, 2>,
     rot: Rotation,
     
     formation: Formation,
-    dst_pos: Option<Vector<f64, 2>>,
-    target: Option<Weak<RefCell<Fleet>>>,
+    pub dst_pos: Option<Vector<f64, 2>>,
+    pub target: Option<Weak<RefCell<Fleet>>>,
     firing: bool,
 
     fireVE: MultiFireVE
@@ -133,6 +139,7 @@ fn eFunction(x: f64, c: f64) -> f64 {
 
 impl Fleet {
     pub fn new(
+        side: Rc<RefCell<Side>>,
         admiral: Admiral, 
         ship_count: u32,
         fighting_spirit: f64,
@@ -141,6 +148,7 @@ impl Fleet {
         fire_range: f64
     ) -> Rc<RefCell<Self>> {
         Rc::new(RefCell::new(Self {
+            side: side,
             admiral: admiral,
             ship_count: ship_count as f64,
             fighting_spirit: fighting_spirit,
@@ -174,17 +182,40 @@ impl Fleet {
     }
 
     pub fn size(&self) -> Vector<f64, 2> {
-        Vector::from([1.5 * self.size_multiplier(), 1. * self.size_multiplier()])
+        Vector::from([1. * self.size_multiplier(), 1.5 * self.size_multiplier()])
     }
 
     pub fn rect(&self) -> Rect {
         Rect::from_center(self.pos, self.size())
     }
 
+    pub fn side(&self) -> &Rc<RefCell<Side>> {
+        &self.side
+    }
+
+    pub fn is_enemy(&self, other: &Fleet) -> bool {
+        self.side.as_ptr() != other.side.as_ptr()
+    }
+
+    pub fn strength(&self) -> f64 {
+        self.ship_count
+        * self.admiral.fighting_spirit
+        * map_range_f64(self.admiral.skill_level, 0., 1., 0.5, 1.)
+        * map_range_f64(self.admiral.will_to_die, 0., 1., 0.9, 1.)
+    }
+
+    pub fn divide_strenght(&self, other: &Fleet) -> f64 {
+        self.strength() / other.strength()
+    }
+
+    pub fn dst_to(&self, other: &Fleet) -> f64 {
+        (self.pos - other.pos).length()
+    }
+
     pub fn paint(&mut self, canvas: &mut Canvas<Window>, scene: &Scene, font: &Font,  selected: bool) {
         let c = if selected { Color::RGB(255, 20, 0) } else { Color::RGB(255, 180, 0) };
 
-        draw_rotated_rect(canvas, self.pos, self.size(), Complex::from([1., 0.]), Color::RGB(255, 180, 255));
+        //draw_rotated_rect(canvas, self.pos, self.size(), Complex::from([1., 0.]), Color::RGB(255, 180, 255));
 
 
         draw_rotated_rect(canvas, self.pos, self.size(), self.rot.rotor, c);
@@ -196,6 +227,8 @@ impl Fleet {
             canvas.circle(dst_pos.x() as i16, dst_pos.y() as i16, 4, Color::RGB(255, 180, 255)).unwrap();
         }
 
+        let side_color = self.side.as_ref().borrow().color;
+
         if let Some(target) = &self.target {
             if let Some(target) = target.upgrade() {
                 let b = target.borrow();
@@ -204,7 +237,7 @@ impl Fleet {
 
                 if self.firing {
 
-                    self.fireVE.paint(canvas, &mut rand::thread_rng(), self.rect(), b.rect());
+                    self.fireVE.paint(canvas, &mut rand::thread_rng(), self.rect(), b.rect(), side_color);
                 }
             }
         }
@@ -213,7 +246,7 @@ impl Fleet {
 
         let surface = font
             .render(format!("{}", self.ship_count as i32).as_str())
-            .blended(Color::RGBA(255, 0, 0, 255))
+            .blended(side_color)
             .map_err(|e| e.to_string()).unwrap();
         let texture = texture_creator
             .create_texture_from_surface(&surface)
@@ -233,7 +266,6 @@ impl Fleet {
         
         self.acc = -self.vel * 0.1;
 
-
         match self.dst_pos {
             Some(dst_pos) => {
                 let acc_direction = (dst_pos - self.pos).normalize();
@@ -245,11 +277,13 @@ impl Fleet {
             None => {},
         };
 
-
-
-
-
         self.vel = self.vel + self.acc;
+
+        let angle = f64::atan2(self.vel.y(), self.vel.x());
+        
+        //let cos = (self.vel.dot(Vector::from([1., 0.]))) / self.vel.length();
+
+        self.rot = Rotation::new(angle);
         self.pos = self.pos + self.vel;
     }
 
@@ -294,27 +328,33 @@ impl Fleet {
 
 
     pub fn event(&mut self, e: &Event, scene: &Scene, selected: bool) -> bool {
-        match e {
-            Event::MouseButtonDown { timestamp, window_id, which, mouse_btn, clicks, x, y } => {
-                if *mouse_btn == MouseButton::Right {
-                    if selected {
-                        if !self.set_target(Vector::from([*x as f64, *y as f64]), scene) {
-                            self.dst_pos = Some(Vector::from([*x as f64, *y as f64]));
-                        }
-                        true
-                    } else { false }
-                } else {
+            match e {
+                Event::MouseButtonDown { timestamp, window_id, which, mouse_btn, clicks, x, y } => {
+                    if *mouse_btn == MouseButton::Right {
+                        if selected {
+                            if !self.set_target(Vector::from([*x as f64, *y as f64]), scene) {
+                                self.dst_pos = Some(Vector::from([*x as f64, *y as f64]));
+                            }
+                            true
+                        } else { false }
+                    } else {
+                        false
+                    }
+                },
+                Event::MouseButtonUp { timestamp, window_id, which, mouse_btn, clicks, x, y } => {
                     false
-                }
-            },
-            Event::MouseButtonUp { timestamp, window_id, which, mouse_btn, clicks, x, y } => {
-                false
-            },
-            _ => false
-        }
+                },
+                _ => false
+            }
     }
 
     pub fn update(&mut self, scene: &Scene, selected: bool) {
+        {
+            let c = self.side.clone();
+            let mut borrowed = c.as_ref().borrow_mut();
+            borrowed.update_fleet(self, scene);
+
+        }
 
         self.proceed_kinematics();
 
@@ -330,7 +370,5 @@ impl Fleet {
         } else {
             self.firing = false;
         }
-
-
     }
 }

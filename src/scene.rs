@@ -9,8 +9,8 @@ use super::fleet::Fleet;
 
 #[derive(Default)]
 pub struct Scene {
-    fleets: Vec<Rc<RefCell<Fleet>>>,
-    selected: Option<*const Fleet>
+    pub fleets: Vec<Rc<RefCell<Fleet>>>,
+    pub selected: Option<*const Fleet>
 }
 
 impl From<Vec<Rc<RefCell<Fleet>>>> for Scene {
@@ -44,7 +44,7 @@ impl Scene {
                         let b: Ref<Fleet> = c.as_ref().borrow();
             
 
-                        if b.in_bounding_box(Vector::from([*x as f64, *y as f64])) {
+                        if b.side().as_ref().borrow().player_controled && b.in_bounding_box(Vector::from([*x as f64, *y as f64])) {
                             self.selected = Some(b.deref());
                             return true
                         }
@@ -83,6 +83,9 @@ impl Scene {
             let mut b: RefMut<Fleet> = c.as_ref().borrow_mut();
             let s = selected.contains(&(b.deref() as *const Fleet));
             b.update(self, s);
+
         }
+
+        self.fleets = self.fleets.iter().filter(|f| f.as_ref().borrow().ship_count > 0.).cloned().collect::<Vec<_>>();
     }
 }

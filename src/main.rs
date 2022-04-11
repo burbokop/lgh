@@ -15,6 +15,8 @@ mod scenario;
 mod graphics;
 mod visual_effects;
 mod rect;
+mod side;
+mod math;
 
 fn main() {
     let sdl_context = sdl2::init().unwrap();
