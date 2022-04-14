@@ -9,3 +9,4 @@ edition = "2021"
 sdl2 = { version = "0.35", features = [ "gfx", "ttf" ] }
 vecmat = "0.7.7"
 rand = "0.8.5"
+itertools = "0.10.3"

@@ -62,20 +62,27 @@ impl Side {
 
             match enemy {
                 Some(aa) => {
+                    
                     println!("a: {}", aa.as_ref().borrow().admiral.name);
                     let w = Rc::downgrade(&aa);
                     *fleet.target.borrow_mut() = Some(w);
 
                     let enemy = aa.as_ref().borrow();
 
+                    let c = fleet.divide_strenght(&enemy);
+                    if c > 1.1 {
+                        let dst = fleet.dst_to(&enemy);
+                        let ddd = map_range_vec_f64(dst - fleet.fire_range * 0.9, 0., dst, fleet.pos, enemy.pos);
+    
+                        fleet.dst_pos = Some(ddd);
+                    } else {
+                        let dst = fleet.dst_to(&enemy);
+                        let ddd = map_range_vec_f64(dst - enemy.fire_range * 1.1, 0., dst, fleet.pos, enemy.pos);
+    
+                        fleet.dst_pos = Some(ddd);                        
+                    }
 
 
-                    let dst = fleet.dst_to(&enemy);
-                    let ddd = map_range_vec_f64(dst - fleet.fire_range * 0.9, 0., dst, fleet.pos, enemy.pos);
-
-                    //add_scalar(enemy.pos - fleet.pos, fleet.dst_to(&enemy) );
-
-                    fleet.dst_pos = Some(ddd);
                 },
                 None => println!("not found"),
             }

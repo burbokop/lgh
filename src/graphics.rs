@@ -18,7 +18,8 @@ pub fn draw_rotated_rect<R: RenderTarget>(
     center: Vector<f64, 2>, 
     size: Vector<f64, 2>,
     rotor: Complex<f64>,
-    color: Color
+    fill: Option<Color>,
+    stroke: Option<Color>
 ) {
 
 
@@ -27,9 +28,18 @@ pub fn draw_rotated_rect<R: RenderTarget>(
     let rt: Vector<f64, 2> = center + (rotor * Complex::from([ size.x() / 2., -size.y() / 2.])).into();
     let rb: Vector<f64, 2> = center + (rotor * Complex::from([ size.x() / 2., size.y() / 2.])).into();
 
+    if let Some(color) = fill {
+        canvas.filled_polygon(
+            &[lt.x() as i16, rt.x() as i16, rb.x() as i16, lb.x() as i16], 
+            &[lt.y() as i16, rt.y() as i16, rb.y() as i16, lb.y() as i16], 
+            color
+        ).unwrap();
+    }
 
-    draw_line(canvas, lt.into(), rt.into(), color);
-    draw_line(canvas, rt.into(), rb.into(), color);
-    draw_line(canvas, rb.into(), lb.into(), color);
-    draw_line(canvas, lb.into(), lt.into(), color);
+    if let Some(color) = stroke {
+        draw_line(canvas, lt, rt, color);
+        draw_line(canvas, rt, rb, color);
+        draw_line(canvas, rb, lb, color);
+        draw_line(canvas, lb, lt, color);
+    }
 }

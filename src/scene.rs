@@ -1,21 +1,31 @@
 
-use std::{ops::Deref, rc::{Rc, Weak}, borrow::BorrowMut, cell::{RefCell, RefMut, Ref}};
+use std::{ops::Deref, rc::{Rc, Weak}, borrow::BorrowMut, cell::{RefCell, RefMut, Ref}, os::unix::prelude::CommandExt};
 
+use itertools::Itertools;
+use rand::distributions::uniform::SampleBorrow;
 use sdl2::{render::{Canvas, RenderTarget}, event::Event, mouse::MouseButton, video::Window, ttf::Font};
 use vecmat::Vector;
+
+use crate::side::Side;
 
 use super::fleet::Fleet;
 
 
+pub struct Group {
+    pub fleets: Vec<Rc<RefCell<Fleet>>>,
+    pub side: Rc<RefCell<Side>>,
+}
+
 #[derive(Default)]
 pub struct Scene {
     pub fleets: Vec<Rc<RefCell<Fleet>>>,
+    pub groups: Vec<Group>,
     pub selected: Option<*const Fleet>
 }
 
 impl From<Vec<Rc<RefCell<Fleet>>>> for Scene {
     fn from(fleets: Vec<Rc<RefCell<Fleet>>>) -> Self {
-        Self { fleets: fleets, selected: None }
+        Self { fleets: fleets, groups: Default::default(), selected: None }
     }
 }
 
@@ -76,7 +86,45 @@ impl Scene {
         self.process_event(e)
     }
 
+    pub fn recalculate_groups(&mut self, dst: f64) {
+        let mut next_group = 1;
+
+        self.fleets.iter().for_each(|f| f.as_ref().borrow_mut().group = 0);
+        
+        for f in &self.fleets {
+            for o in &self.fleets {
+                let mut f = f.as_ref().borrow_mut();
+                if let Ok(mut o) = o.as_ref().try_borrow_mut() {
+                    if f.dst_to(&o) < dst && !f.is_enemy(&o) {
+                        if f.group == 0 && o.group == 0 {
+                            f.group = next_group;
+                            o.group = next_group;
+                            next_group = next_group + 1;                            
+                        } else if f.group == 0 {
+                            f.group = o.group
+                        } else {
+                            o.group = f.group
+                        }
+                    } else {
+                        if f.group == 0 {
+                            f.group = next_group;
+                            next_group = next_group + 1;                            
+                        } else if o.group == 0 {
+                            o.group = next_group;
+                            next_group = next_group + 1;                            
+                        }
+                    }
+                }
+            }
+        }
+
+        //let g = self.fleets.iter().group_by(|f| {
+        //    f.as_ref().borrow().side.as_ptr()
+        //}).map(|g| { g.map(|f| { f.as_ref().borrow().pos() }) });
+    }
+
     pub fn update(&mut self) {
+        self.recalculate_groups(150.);
         let selected = self.selected;
         for f in &self.fleets {
             let c = f.clone();

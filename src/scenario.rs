@@ -26,6 +26,15 @@ pub fn scenario1() -> Scene {
             120.
         ),
         Fleet::new(
+            s0.clone(),
+            Admiral{name: "alex".to_string(), fighting_spirit:1.,will_to_die:1.,skill_level:1.}, 
+            4000, 
+            1., 
+            Vector::from([100.,200.]),
+            15.,
+            120.
+        ),
+        Fleet::new(
             s0,
             Admiral{name: "igor".to_string(), fighting_spirit:1.,will_to_die:1.,skill_level:1.}, 
             2000, 

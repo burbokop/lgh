@@ -3,7 +3,7 @@ use std::{cell::{RefCell, RefMut, Ref}, rc::{Rc, Weak}, borrow::BorrowMut, time:
 use sdl2::{render::{RenderTarget, Canvas}, gfx::primitives::DrawRenderer, event::Event, pixels::Color, mouse::MouseButton, ttf::Font, video::Window};
 use vecmat::{Vector, Complex, prelude::Dot};
 
-use crate::{admiral::Admiral, graphics::{draw_rotated_rect, draw_line}, scene::Scene, visual_effects::MultiFireVE, rect::Rect, side::Side, math::map_range_f64};
+use crate::{admiral::Admiral, graphics::{draw_rotated_rect, draw_line}, scene::Scene, visual_effects::MultiFireVE, rect::Rect, side::Side, math::{map_range_f64, contrast_color}};
 
 use sdl2::gfx;
 
@@ -119,6 +119,7 @@ pub struct Fleet {
     pub dst_pos: Option<Vector<f64, 2>>,
     pub target: Option<Weak<RefCell<Fleet>>>,
     firing: bool,
+    pub group: usize,
 
     fireVE: MultiFireVE
 }
@@ -160,6 +161,7 @@ impl Fleet {
             formation: Formation::Rect,
             dst_pos: None,
             target: None,
+            group: 0,
             fire_range: fire_range,
             firing: false,
             fireVE: MultiFireVE::new(&mut rand::thread_rng(), Duration::from_millis(100), Duration::from_millis(2000), Duration::from_millis(50), ship_count / 100)
@@ -213,12 +215,14 @@ impl Fleet {
     }
 
     pub fn paint(&mut self, canvas: &mut Canvas<Window>, scene: &Scene, font: &Font,  selected: bool) {
-        let c = if selected { Color::RGB(255, 20, 0) } else { Color::RGB(255, 180, 0) };
+        let stroke_color = if selected { Some(Color::RGB(255, 20, 0)) } else { None };
 
         //draw_rotated_rect(canvas, self.pos, self.size(), Complex::from([1., 0.]), Color::RGB(255, 180, 255));
 
+        let side_color = self.side.as_ref().borrow().color;
+        let contrast_side_color = contrast_color(side_color);
 
-        draw_rotated_rect(canvas, self.pos, self.size(), self.rot.rotor, c);
+        draw_rotated_rect(canvas, self.pos, self.size(), self.rot.rotor, Some(side_color), stroke_color);
 
 
 
@@ -227,7 +231,6 @@ impl Fleet {
             canvas.circle(dst_pos.x() as i16, dst_pos.y() as i16, 4, Color::RGB(255, 180, 255)).unwrap();
         }
 
-        let side_color = self.side.as_ref().borrow().color;
 
         if let Some(target) = &self.target {
             if let Some(target) = target.upgrade() {
@@ -245,8 +248,8 @@ impl Fleet {
         let texture_creator = canvas.texture_creator();
 
         let surface = font
-            .render(format!("{}", self.ship_count as i32).as_str())
-            .blended(side_color)
+            .render(format!("{} : {}", self.group, self.ship_count as i32).as_str())
+            .blended(Color::BLACK)
             .map_err(|e| e.to_string()).unwrap();
         let texture = texture_creator
             .create_texture_from_surface(&surface)
