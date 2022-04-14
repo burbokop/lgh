@@ -12,8 +12,67 @@ use super::fleet::Fleet;
 
 
 pub struct Group {
+    pub id: usize,
     pub fleets: Vec<Rc<RefCell<Fleet>>>,
     pub side: Rc<RefCell<Side>>,
+}
+
+impl Group {
+    pub fn new(id: usize, fleets: Vec<Rc<RefCell<Fleet>>>) -> Self {
+        let side = fleets[0].as_ref().borrow().side.clone();
+        Self { id: id, fleets: fleets, side: side }
+    }
+    pub fn strength(&self) -> f64 {
+        self.fleets.iter().map(|f|f.as_ref().borrow().strength()).sum()
+    }
+    pub fn strength_not_borrow(&self, fleet: &Fleet) -> f64 {
+        self.fleets.iter().filter(|f| f.as_ref().as_ptr() as *const Fleet != fleet as *const Fleet).map(|f|f.as_ref().borrow().strength()).sum::<f64>() + fleet.strength()
+    }
+}
+
+#[cfg(test)]
+mod group_tests {
+    use sdl2::pixels::Color;
+
+    use crate::{fleet::Fleet, side::Side};
+
+    use super::Group;
+
+    #[test]
+    fn strength_not_borrow_test() {
+        let side = Side::new("s".to_string(), Color::BLACK, false);
+        let flt0 = Fleet::new(side.clone(), crate::admiral::Admiral { name: "1".to_string(), fighting_spirit: 1., will_to_die: 1., skill_level: 1. }, 2000, 1., Default::default(), 1., 1.); 
+        let flt1 = Fleet::new(side.clone(), crate::admiral::Admiral { name: "2".to_string(), fighting_spirit: 1., will_to_die: 1., skill_level: 1. }, 2000, 1., Default::default(), 1., 1.); 
+        let flt2 = Fleet::new(side.clone(), crate::admiral::Admiral { name: "3".to_string(), fighting_spirit: 1., will_to_die: 1., skill_level: 1. }, 2000, 1., Default::default(), 1., 1.); 
+
+        let sum = {
+            flt0.as_ref().borrow().strength() + flt1.as_ref().borrow().strength() + flt2.as_ref().borrow().strength()
+        };
+
+        let group = Group { id: 1, fleets: vec![flt0, flt1.clone(), flt2], side: side  };
+
+        let f = flt1.as_ref().borrow_mut();
+        assert_eq!(group.strength_not_borrow(&f), sum);
+    }
+
+    #[test]
+    #[should_panic]
+    fn strength_should_panic_test() {
+        let side = Side::new("s".to_string(), Color::BLACK, false);
+        let flt0 = Fleet::new(side.clone(), crate::admiral::Admiral { name: "1".to_string(), fighting_spirit: 1., will_to_die: 1., skill_level: 1. }, 2000, 1., Default::default(), 1., 1.); 
+        let flt1 = Fleet::new(side.clone(), crate::admiral::Admiral { name: "2".to_string(), fighting_spirit: 1., will_to_die: 1., skill_level: 1. }, 2000, 1., Default::default(), 1., 1.); 
+        let flt2 = Fleet::new(side.clone(), crate::admiral::Admiral { name: "3".to_string(), fighting_spirit: 1., will_to_die: 1., skill_level: 1. }, 2000, 1., Default::default(), 1., 1.); 
+
+        let sum = {
+            flt0.as_ref().borrow().strength() + flt1.as_ref().borrow().strength() + flt2.as_ref().borrow().strength()
+        };
+
+        let group = Group { id: 1, fleets: vec![flt0, flt1.clone(), flt2], side: side  };
+
+        let f = flt1.as_ref().borrow_mut();
+        assert_eq!(group.strength(), sum);
+        println!("{}", f.ship_count)
+    }
 }
 
 #[derive(Default)]
@@ -116,6 +175,11 @@ impl Scene {
                     }
                 }
             }
+
+            self.groups = self.fleets
+                .iter()
+                .group_by(|f| f.as_ref().borrow().group).into_iter()
+                .map(|g| Group::new(g.0, g.1.cloned().collect())).collect();
         }
 
         //let g = self.fleets.iter().group_by(|f| {
@@ -123,8 +187,24 @@ impl Scene {
         //}).map(|g| { g.map(|f| { f.as_ref().borrow().pos() }) });
     }
 
+    //pub fn group_by_fleet_rc(&self, fleet: &Rc<RefCell<Fleet>>) -> Option<&Group> {
+    //    self.groups.iter().find(|group| group.fleets.iter().find(|f| f.as_ref().as_ptr() == fleet.as_ref().as_ptr()).is_some())
+    //}
+
+    pub fn group_by_fleet(&self, fleet: &Fleet) -> Option<&Group> {
+        self.groups.iter().find(|group| group.id == fleet.group)
+    }
+
+
     pub fn update(&mut self) {
         self.recalculate_groups(150.);
+
+        for group in &self.groups {
+            let c = group.side.clone();
+            let mut borrowed = c.as_ref().borrow_mut();
+            borrowed.each_group(group, self)
+        }
+
         let selected = self.selected;
         for f in &self.fleets {
             let c = f.clone();

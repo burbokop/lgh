@@ -19,7 +19,7 @@ pub fn scenario1() -> Scene {
         Fleet::new(
             s0.clone(),
             Admiral{name: "borys".to_string(), fighting_spirit:1.,will_to_die:1.,skill_level:1.}, 
-            4000, 
+            3000, 
             1., 
             Vector::from([100.,100.]),
             15.,
@@ -28,7 +28,7 @@ pub fn scenario1() -> Scene {
         Fleet::new(
             s0.clone(),
             Admiral{name: "alex".to_string(), fighting_spirit:1.,will_to_die:1.,skill_level:1.}, 
-            4000, 
+            3000, 
             1., 
             Vector::from([100.,200.]),
             15.,
@@ -37,7 +37,7 @@ pub fn scenario1() -> Scene {
         Fleet::new(
             s0,
             Admiral{name: "igor".to_string(), fighting_spirit:1.,will_to_die:1.,skill_level:1.}, 
-            2000, 
+            3000, 
             1., 
             Vector::from([500.,100.]),
             15.,
@@ -46,16 +46,16 @@ pub fn scenario1() -> Scene {
         Fleet::new(
             s1.clone(),
             Admiral{name: "vania0".to_string(), fighting_spirit:1.,will_to_die:1.,skill_level:1.}, 
-            3000, 
+            1000, 
             1., 
-            Vector::from([200.,200.]),
+            Vector::from([200.,400.]),
             5.,
             100.
         ),
         Fleet::new(
             s1.clone(),
             Admiral{name: "vania1".to_string(), fighting_spirit:1.,will_to_die:1.,skill_level:1.}, 
-            3000, 
+            1000, 
             1., 
             Vector::from([400.,400.]),
             5.,
@@ -64,9 +64,27 @@ pub fn scenario1() -> Scene {
         Fleet::new(
             s1.clone(),
             Admiral{name: "vania2".to_string(), fighting_spirit:1.,will_to_die:1.,skill_level:1.}, 
-            3000, 
+            1000, 
             1., 
             Vector::from([600.,600.]),
+            5.,
+            100.
+        ),
+        Fleet::new(
+            s1.clone(),
+            Admiral{name: "vania3".to_string(), fighting_spirit:1.,will_to_die:1.,skill_level:1.}, 
+            1000, 
+            1., 
+            Vector::from([650.,650.]),
+            5.,
+            100.
+        ),
+        Fleet::new(
+            s1.clone(),
+            Admiral{name: "vania4".to_string(), fighting_spirit:1.,will_to_die:1.,skill_level:1.}, 
+            1000, 
+            1., 
+            Vector::from([650.,600.]),
             5.,
             100.
         )

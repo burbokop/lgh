@@ -248,7 +248,7 @@ impl Fleet {
         let texture_creator = canvas.texture_creator();
 
         let surface = font
-            .render(format!("{} : {}", self.group, self.ship_count as i32).as_str())
+            .render(format!("{} {} : {}", self.admiral.name, self.group, self.ship_count as i32).as_str())
             .blended(Color::BLACK)
             .map_err(|e| e.to_string()).unwrap();
         let texture = texture_creator
@@ -355,7 +355,7 @@ impl Fleet {
         {
             let c = self.side.clone();
             let mut borrowed = c.as_ref().borrow_mut();
-            borrowed.update_fleet(self, scene);
+            borrowed.each_fleet(self, scene);
 
         }
 
