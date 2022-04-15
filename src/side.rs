@@ -4,24 +4,43 @@ use rand::distributions::uniform::SampleBorrow;
 use sdl2::pixels::Color;
 
 use crate::{fleet::Fleet, scene::{Scene, Group}, math::map_range_vec_f64};
-
+use std::hash::Hash;
+#[derive(Debug)]
 pub enum ChooseEnemy {
     ByStrength,
     ByGroupStrength,
     MulBoth
 }
 
+#[derive(Debug)]
 pub struct Side {
     pub name: String,
     pub color: Color,
     pub player_controled: bool,
-    pub choose_enemy: ChooseEnemy
+    pub choose_enemy: ChooseEnemy,
+    pub raiting: f64
+}
+
+impl Hash for Side {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.name.hash(state);
+    }
+}
+
+impl PartialEq for Side {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+    }
+}
+
+impl Eq for Side {
+    fn assert_receiver_is_total_eq(&self) {}
 }
 
 
 impl Side {
     pub fn new(name: String, color: Color, player_controled: bool) -> Rc<RefCell<Self>> {
-        Rc::new(RefCell::new(Self { name: name, color: color, player_controled: player_controled, choose_enemy: ChooseEnemy::ByGroupStrength }))
+        Rc::new(RefCell::new(Self { name: name, color: color, player_controled: player_controled, choose_enemy: ChooseEnemy::ByGroupStrength, raiting: 0. }))
     }
 
     pub fn choose_enemy(&mut self, fleet: &Fleet, scene: &Scene) -> Option<Rc<RefCell<Fleet>>> {
@@ -76,6 +95,10 @@ impl Side {
                 
 
         }).map(|f|f.0.clone())
+    }
+
+    pub fn update(&mut self, scene: &Scene) {
+        self.raiting = scene.fleets_by_side(self).map(|f| f.ship_count).sum();
     }
 
     pub fn each_group(&mut self, group: &Group, scene: &Scene) {

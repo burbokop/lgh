@@ -1,12 +1,12 @@
 
-use std::{ops::Deref, rc::{Rc, Weak}, borrow::BorrowMut, cell::{RefCell, RefMut, Ref}, os::unix::prelude::CommandExt};
+use std::{ops::Deref, rc::{Rc, Weak}, borrow::BorrowMut, cell::{RefCell, RefMut, Ref}, os::unix::prelude::CommandExt, convert::identity};
 
 use itertools::Itertools;
 use rand::distributions::uniform::SampleBorrow;
 use sdl2::{render::{Canvas, RenderTarget}, event::Event, mouse::MouseButton, video::Window, ttf::Font};
 use vecmat::Vector;
 
-use crate::side::Side;
+use crate::{side::Side, graphics::draw_text};
 
 use super::fleet::Fleet;
 
@@ -79,17 +79,37 @@ mod group_tests {
 pub struct Scene {
     pub fleets: Vec<Rc<RefCell<Fleet>>>,
     pub groups: Vec<Group>,
+    pub sides: Vec<Rc<RefCell<Side>>>,
     pub selected: Option<*const Fleet>
 }
 
 impl From<Vec<Rc<RefCell<Fleet>>>> for Scene {
     fn from(fleets: Vec<Rc<RefCell<Fleet>>>) -> Self {
-        Self { fleets: fleets, groups: Default::default(), selected: None }
+        let s: Vec<_> = fleets
+            .iter()
+            .unique_by(|f| f.as_ref().borrow().side.clone().as_ref().borrow().deref().name.clone())
+            .cloned()
+            .map(|f| f.as_ref().borrow().side.clone())
+            .collect();
+
+        Self { fleets: fleets, groups: Default::default(), sides: s, selected: None }
     }
 }
 
 impl Scene {
     pub fn paint(&mut self, canvas: &mut Canvas<Window>, font: &Font) {
+
+
+        let mut side_y: f64 = 10.;
+        for side in &self.sides {
+            let borrowed = side.as_ref().borrow();
+
+            draw_text(canvas, font, format!("{}: {}", borrowed.name, borrowed.raiting as i32).as_str(), Vector::from([10., side_y]));
+
+            side_y = side_y + 20.;
+        }
+
+
         let selected = self.selected;
         for f in &self.fleets {
             let c = f.clone();
@@ -102,6 +122,15 @@ impl Scene {
 
     pub fn fleets(&self) -> &Vec<Rc<RefCell<Fleet>>> {
         &self.fleets
+    }
+
+    pub fn try_borrow_fleets(&self) -> impl Iterator<Item=Ref<Fleet>> {
+        self.fleets.iter().map(|f|f.as_ref().try_borrow()).filter_map(|f| f.ok())
+    }
+
+    pub fn fleets_by_side(&self, side: &Side) -> impl Iterator<Item=Ref<Fleet>> {
+        let ptr = side as *const Side;
+        self.try_borrow_fleets().filter(move |f| f.side.as_ref().as_ptr() as *const Side == ptr)
     }
 
     fn process_event(&mut self, e: &Event) -> bool {
@@ -198,6 +227,10 @@ impl Scene {
 
     pub fn update(&mut self) {
         self.recalculate_groups(150.);
+
+        for side in &self.sides {
+            side.clone().as_ref().borrow_mut().update(self)
+        }
 
         for group in &self.groups {
             let c = group.side.clone();

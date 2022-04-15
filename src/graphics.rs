@@ -1,4 +1,4 @@
-use sdl2::{render::{RenderTarget, Canvas}, rect::Rect, gfx::primitives::DrawRenderer, pixels::Color};
+use sdl2::{render::{RenderTarget, Canvas}, rect::Rect, gfx::primitives::DrawRenderer, pixels::Color, video::Window, ttf::Font};
 use vecmat::{Vector, Complex};
 
 
@@ -42,4 +42,31 @@ pub fn draw_rotated_rect<R: RenderTarget>(
         draw_line(canvas, rb, lb, color);
         draw_line(canvas, lb, lt, color);
     }
+}
+
+pub fn draw_text(
+    canvas: &mut Canvas<Window>, 
+    font: &Font,
+    text: &str,
+    pos: Vector<f64, 2>
+) {
+
+    let texture_creator = canvas.texture_creator();
+
+    let surface = font
+        .render(text)
+        .blended(Color::BLACK)
+        .map_err(|e| e.to_string()).unwrap();
+    let texture = texture_creator
+        .create_texture_from_surface(&surface)
+        .map_err(|e| e.to_string()).unwrap();
+
+    let r = sdl2::rect::Rect::new(
+        pos.x() as i32, 
+        pos.y() as i32, 
+        surface.width(), 
+        surface.height()
+    );
+
+    canvas.copy(&texture, None, Some(r)).unwrap();
 }

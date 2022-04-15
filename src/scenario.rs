@@ -10,8 +10,8 @@ use crate::{scene::Scene, fleet::{Fleet, Rotation, Formation}, admiral::Admiral,
 
 pub fn scenario1() -> Scene {
 
-    let s0 = Side::new("s0".to_string(), Color::GREY, true);
-    let s1 = Side::new("s1".to_string(), Color::MAGENTA, false);
+    let s0 = Side::new("ukraine".to_string(), Color::GREY, true);
+    let s1 = Side::new("rusnia".to_string(), Color::MAGENTA, false);
 
 
 

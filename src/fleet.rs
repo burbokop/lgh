@@ -1,4 +1,4 @@
-use std::{cell::{RefCell, RefMut, Ref}, rc::{Rc, Weak}, borrow::BorrowMut, time::Duration};
+use std::{cell::{RefCell, RefMut, Ref}, rc::{Rc, Weak}, borrow::BorrowMut, time::Duration, iter::Sum};
 
 use sdl2::{render::{RenderTarget, Canvas}, gfx::primitives::DrawRenderer, event::Event, pixels::Color, mouse::MouseButton, ttf::Font, video::Window};
 use vecmat::{Vector, Complex, prelude::Dot};
@@ -187,6 +187,15 @@ impl Fleet {
         Vector::from([1. * self.size_multiplier(), 1.5 * self.size_multiplier()])
     }
 
+    pub fn circumscribed_circle_radius_sqr(&self) -> f64 {
+        let r = self.size() / 2.;
+        r.y() * r.y() + r.x() * r.x()
+    }
+
+    pub fn circumscribed_circle_radius(&self) -> f64 {
+        self.circumscribed_circle_radius_sqr().sqrt()
+    }
+
     pub fn rect(&self) -> Rect {
         Rect::from_center(self.pos, self.size())
     }
@@ -210,8 +219,17 @@ impl Fleet {
         self.strength() / other.strength()
     }
 
+    pub fn dst_to_sqr(&self, other: &Fleet) -> f64 {
+        (self.pos - other.pos).square_length()
+    }
+
     pub fn dst_to(&self, other: &Fleet) -> f64 {
         (self.pos - other.pos).length()
+    }
+
+    pub fn mass(&self) -> f64 {
+        const mass_coef: f64 = 1.;
+        self.ship_count * mass_coef
     }
 
     pub fn paint(&mut self, canvas: &mut Canvas<Window>, scene: &Scene, font: &Font,  selected: bool) {
@@ -264,17 +282,35 @@ impl Fleet {
 
         canvas.copy(&texture, None, Some(r)).unwrap();
     }
+    
 
-    fn proceed_kinematics(&mut self) {
+    fn repulsion_force(&self, scene: &Scene) -> Vector<f64, 2> {
+        #[derive(Default)]
+        struct SumVec(Vector<f64, 2>);
+
+        impl Sum for SumVec {
+            fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+                iter.reduce(|a, b| SumVec(a.0 + b.0)).unwrap_or_default()
+            }
+        }
+
+        scene
+            .try_borrow_fleets()
+            .filter(|f| f.dst_to(self) < f.circumscribed_circle_radius() + self.circumscribed_circle_radius())
+            .map(|f| SumVec(self.pos - f.pos))
+            .sum::<SumVec>().0
+    }
+
+    fn proceed_kinematics(&mut self, scene: &Scene, selected: bool) {
         
         self.acc = -self.vel * 0.1;
+
+        self.acc += self.repulsion_force(scene) / self.mass();
 
         match self.dst_pos {
             Some(dst_pos) => {
                 let acc_direction = (dst_pos - self.pos).normalize();
-
                 let c = eFunction(self.vel.length(), 3.);
-
                 self.acc += acc_direction * c * 0.01;
             },
             None => {},
@@ -359,7 +395,7 @@ impl Fleet {
 
         }
 
-        self.proceed_kinematics();
+        self.proceed_kinematics(scene, selected);
 
         if let Some(tgt_pos) = self.map_target(|target| target.pos) {
             self.firing = (tgt_pos - self.pos).length() < self.fire_range;
